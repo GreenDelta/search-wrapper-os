@@ -42,6 +42,11 @@ class Request implements OsRequest {
 	public void setQuery(QueryBuilder query) {
 		request.setQuery(query);
 	}
+	
+	@Override
+	public void addField(String field) {
+		request.addFetchField(field);
+	}
 
 	@Override
 	public Response execute() throws IOException {

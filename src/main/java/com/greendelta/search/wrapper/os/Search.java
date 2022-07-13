@@ -2,6 +2,7 @@ package com.greendelta.search.wrapper.os;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,8 +39,14 @@ class Search {
 				for (SearchHit hit : hits) {
 					if (searchQuery.getFullResult()) {
 						result.data.add(hit.getSourceAsMap());
-					} else {
+					} else if (searchQuery.getFields().isEmpty()) {
 						result.data.add(Collections.singletonMap("documentId", hit.getId()));
+					} else {
+						Map<String, Object> map = new HashMap<>();
+						for (String field : searchQuery.getFields()) {
+							map.put(field, hit.getFields().get(field).getValue());
+						}
+						result.data.add(map);
 					}
 				}
 				totalHits = response.getTotalHits();
@@ -49,7 +56,9 @@ class Search {
 			result.resultInfo.count = result.data.size();
 			Result.extend(result, totalHits, searchQuery);
 			return result;
-		} catch (Exception e) {
+		} catch (
+
+		Exception e) {
 			// TODO handle exception
 			SearchResult<Map<String, Object>> result = new SearchResult<>();
 			Result.extend(result, 0, searchQuery);
@@ -89,6 +98,11 @@ class Search {
 		setupSorting(request, searchQuery);
 		setupAggregations(request, searchQuery);
 		request.setQuery(Query.create(searchQuery));
+		if (!searchQuery.getFullResult()) {
+			for (String field : searchQuery.getFields()) {
+				request.addField(field);
+			}
+		}
 		return request;
 	}
 
@@ -133,6 +147,8 @@ class Search {
 
 		void setQuery(QueryBuilder query);
 
+		void addField(String field);
+		
 		OsResponse execute() throws IOException;
 
 	}
