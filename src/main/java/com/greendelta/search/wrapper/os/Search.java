@@ -8,7 +8,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.Aggregation;
@@ -16,12 +20,15 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.sort.SortOrder;
 
+import com.greendelta.search.wrapper.SearchField;
 import com.greendelta.search.wrapper.SearchQuery;
 import com.greendelta.search.wrapper.SearchResult;
 import com.greendelta.search.wrapper.SearchSorting;
 import com.greendelta.search.wrapper.aggregations.SearchAggregation;
 
 class Search {
+
+	private static final Logger log = LogManager.getLogger(Search.class);
 
 	static SearchResult<Map<String, Object>> run(OsRequest request, SearchQuery searchQuery) {
 		prepare(request, searchQuery);
@@ -42,9 +49,12 @@ class Search {
 					} else if (searchQuery.getFields().isEmpty()) {
 						result.data.add(Collections.singletonMap("documentId", hit.getId()));
 					} else {
+						Map<String, DocumentField> fields = hit.getFields();
 						Map<String, Object> map = new HashMap<>();
-						for (String field : searchQuery.getFields()) {
-							map.put(field, hit.getFields().get(field).getValue());
+						for (SearchField field : searchQuery.getFields()) {
+							if (!fields.containsKey(field.name))
+								continue;
+							putFieldValue(map, field.name, fields.get(field.name).getValues(), field.isArray);
 						}
 						result.data.add(map);
 					}
@@ -56,13 +66,42 @@ class Search {
 			result.resultInfo.count = result.data.size();
 			Result.extend(result, totalHits, searchQuery);
 			return result;
-		} catch (
-
-		Exception e) {
-			// TODO handle exception
+		} catch (Exception e) {
+			log.error("Error during search", e);
 			SearchResult<Map<String, Object>> result = new SearchResult<>();
 			Result.extend(result, 0, searchQuery);
 			return result;
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private static void putFieldValue(Map<String, Object> map, String field, List<Object> values, boolean array) {
+		if (!field.contains(".")) {
+			if (array) {
+				map.put(field, values);
+			} else {
+				map.put(field, !values.isEmpty() ? values.get(0) : null);
+			}
+			return;
+		}
+		String first = field.substring(0, field.indexOf("."));
+		String rest = field.substring(field.indexOf(".") + 1);
+		if (array) {
+			List<Map<String, Object>> list = (List<Map<String, Object>>) map.get(first);
+			if (list == null) {
+				list = values.stream().map(v -> new HashMap<String, Object>()).collect(Collectors.toList());
+				map.put(first, list);
+			}
+			for (int i = 0; i < values.size(); i++) {
+				list.get(i).put(rest, values.get(i));
+			}
+		} else {
+			Map<String, Object> subMap = (Map<String, Object>) map.get(first);
+			if (subMap == null) {
+				subMap = new HashMap<>();
+				map.put(first, subMap);
+			}
+			putFieldValue(subMap, rest, values, false);
 		}
 	}
 
@@ -99,8 +138,8 @@ class Search {
 		setupAggregations(request, searchQuery);
 		request.setQuery(Query.create(searchQuery));
 		if (!searchQuery.getFullResult()) {
-			for (String field : searchQuery.getFields()) {
-				request.addField(field);
+			for (SearchField field : searchQuery.getFields()) {
+				request.addField(field.name);
 			}
 		}
 		return request;
@@ -148,7 +187,7 @@ class Search {
 		void setQuery(QueryBuilder query);
 
 		void addField(String field);
-		
+
 		OsResponse execute() throws IOException;
 
 	}
