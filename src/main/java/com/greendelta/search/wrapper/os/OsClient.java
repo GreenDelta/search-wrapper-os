@@ -39,12 +39,10 @@ public class OsClient implements SearchClient {
 
 	private final Client client;
 	private final String indexName;
-	private final String indexType;
 
-	public OsClient(Client client, String indexName, String indexType) {
+	public OsClient(Client client, String indexName) {
 		this.client = client;
 		this.indexName = indexName;
-		this.indexType = indexType;
 	}
 
 	@Override
@@ -76,7 +74,7 @@ public class OsClient implements SearchClient {
 		client.admin().indices().create(request).actionGet();
 		String mapping = settings.get("mapping");
 		PutMappingRequest mappingRequest = Requests.putMappingRequest(indexName);
-		mappingRequest.type(indexType).source(mapping, XContentType.JSON);
+		mappingRequest.source(mapping, XContentType.JSON);
 		client.admin().indices().putMapping(mappingRequest).actionGet();
 	}
 
@@ -96,7 +94,7 @@ public class OsClient implements SearchClient {
 	}
 
 	private IndexRequest indexRequest(String id, Map<String, Object> content, boolean refresh) {
-		IndexRequestBuilder builder = client.prepareIndex(indexName, indexType, id);
+		IndexRequestBuilder builder = client.prepareIndex(indexName).setId(id);
 		builder.setOpType(OpType.INDEX).setSource(content);
 		if (refresh) {
 			builder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
@@ -143,7 +141,7 @@ public class OsClient implements SearchClient {
 	}
 
 	private UpdateRequest updateRequest(String id, Map<String, Object> content, boolean refresh) {
-		UpdateRequestBuilder builder = client.prepareUpdate(indexName, indexType, id);
+		UpdateRequestBuilder builder = client.prepareUpdate(indexName, id);
 		builder.setDoc(content);
 		if (refresh) {
 			builder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
@@ -152,7 +150,7 @@ public class OsClient implements SearchClient {
 	}
 
 	private UpdateRequest updateRequest(String id, String script, Map<String, Object> parameters, boolean refresh) {
-		UpdateRequestBuilder builder = client.prepareUpdate(indexName, indexType, id);
+		UpdateRequestBuilder builder = client.prepareUpdate(indexName, id);
 		builder.setScript(new Script(ScriptType.INLINE, "painless", script, parameters));
 		if (refresh) {
 			builder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
@@ -175,7 +173,7 @@ public class OsClient implements SearchClient {
 	}
 
 	private DeleteRequest deleteRequest(String id, boolean refresh) {
-		DeleteRequestBuilder builder = client.prepareDelete(indexName, indexType, id);
+		DeleteRequestBuilder builder = client.prepareDelete(indexName, id);
 		if (refresh) {
 			builder.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 		}
@@ -184,7 +182,7 @@ public class OsClient implements SearchClient {
 
 	@Override
 	public boolean has(String id) {
-		GetRequestBuilder builder = client.prepareGet(indexName, indexType, id);
+		GetRequestBuilder builder = client.prepareGet(indexName, id);
 		GetResponse response = client.get(builder.request()).actionGet();
 		if (response == null)
 			return false;
@@ -193,7 +191,7 @@ public class OsClient implements SearchClient {
 
 	@Override
 	public Map<String, Object> get(String id) {
-		GetRequestBuilder builder = client.prepareGet(indexName, indexType, id);
+		GetRequestBuilder builder = client.prepareGet(indexName, id);
 		GetResponse response = client.get(builder.request()).actionGet();
 		if (response == null)
 			return null;
@@ -206,7 +204,7 @@ public class OsClient implements SearchClient {
 	@Override
 	public List<Map<String, Object>> get(Set<String> ids) {
 		MultiGetRequestBuilder builder = client.prepareMultiGet();
-		builder.add(indexName, indexType, ids);
+		builder.add(indexName, ids);
 		MultiGetResponse response = client.multiGet(builder.request()).actionGet();
 		if (response == null)
 			return null;
@@ -230,13 +228,13 @@ public class OsClient implements SearchClient {
 		if (!exists)
 			return;
 		Map<String, Object> mapping = client.admin().indices().prepareGetMappings(indexName).execute().actionGet()
-				.getMappings().get(indexName).get(indexType).getSourceAsMap();
+				.getMappings().get(indexName).getSourceAsMap();
 		client.admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet();
 		CreateIndexRequest request = new CreateIndexRequest(indexName);
 		request.settings(Settings.builder().put("max_result_window", 2147483647).put("number_of_shards", 1));
 		client.admin().indices().create(request).actionGet();
 		PutMappingRequest mappingRequest = Requests.putMappingRequest(indexName);
-		mappingRequest.type(indexType).source(mapping);
+		mappingRequest.source(mapping);
 		client.admin().indices().putMapping(mappingRequest).actionGet();
 	}
 
