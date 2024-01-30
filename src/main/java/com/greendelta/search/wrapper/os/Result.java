@@ -10,7 +10,6 @@ import org.opensearch.search.aggregations.bucket.nested.ParsedReverseNested;
 import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
-import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 
 import com.greendelta.search.wrapper.SearchFilterType;
 import com.greendelta.search.wrapper.SearchQuery;
@@ -32,8 +31,8 @@ class Result {
 	}
 
 	static List<AggregationResult> addAggregations(OsResponse response, List<Aggregation> aggreagtions) {
-		List<AggregationResult> results = new ArrayList<>();
-		for (Aggregation aggregation : aggreagtions) {
+		var results = new ArrayList<AggregationResult>();
+		for (var aggregation : aggreagtions) {
 			if (!aggregation.getType().equals(NESTED_TYPE)) {
 				results.add(addAggregation(response, aggregation));
 			} else {
@@ -44,7 +43,7 @@ class Result {
 	}
 
 	private static AggregationResult addAggregation(OsResponse response, Aggregation aggregation) {
-		AggregationResultBuilder builder = new AggregationResultBuilder();
+		var builder = new AggregationResultBuilder();
 		builder.name(aggregation.getName()).type(mapType(aggregation.getType()));
 		putEntries(response, aggregation, builder);
 		return builder.build();
@@ -53,59 +52,50 @@ class Result {
 	private static SearchFilterType mapType(String type) {
 		if (type == null)
 			return null;
-		switch (type) {
-		case StringTerms.NAME:
-		case LongTerms.NAME:
-		case DoubleTerms.NAME:
-			return TermsAggregation.TYPE;
-		case RANGE_TYPE:
-			return RangeAggregation.TYPE;
-		default:
-			return SearchFilterType.UNKNOWN;
-		}
+		return switch (type) {
+			case StringTerms.NAME, LongTerms.NAME, DoubleTerms.NAME -> TermsAggregation.TYPE;
+			case RANGE_TYPE -> RangeAggregation.TYPE;
+			default -> SearchFilterType.UNKNOWN;
+		};
 	}
 
 	private static void putEntries(OsResponse response, Aggregation aggregation, AggregationResultBuilder builder) {
-		long totalCount = 0;
+		var totalCount = 0;
 		switch (aggregation.getType()) {
-		case StringTerms.NAME:
-		case LongTerms.NAME:
-		case DoubleTerms.NAME:
-			for (Bucket bucket : response.getTermBuckets(aggregation)) {
-				long count = getCount(bucket.getDocCount(), bucket.getAggregations().asList());
-				builder.addEntry(new AggregationResultEntry(bucket.getKeyAsString(), count));
-				totalCount += count;
-			}
-			builder.totalCount(totalCount);
-			break;
-		case RANGE_TYPE:
-			for (org.opensearch.search.aggregations.bucket.range.Range.Bucket bucket : response
-					.getRangeBuckets(aggregation)) {
-				Object[] data = new Object[] { bucket.getFrom(), bucket.getTo() };
-				long count = getCount(bucket.getDocCount(), bucket.getAggregations().asList());
-				builder.addEntry(new AggregationResultEntry(bucket.getKeyAsString(), count, data));
-				totalCount += count;
-			}
-			builder.totalCount(totalCount);
-			break;
+			case StringTerms.NAME, LongTerms.NAME, DoubleTerms.NAME:
+				for (var bucket : response.getTermBuckets(aggregation)) {
+					var count = getCount(bucket.getDocCount(), bucket.getAggregations().asList());
+					builder.addEntry(new AggregationResultEntry(bucket.getKeyAsString(), count));
+					totalCount += count;
+				}
+				builder.totalCount(totalCount);
+				break;
+			case RANGE_TYPE:
+				for (var bucket : response.getRangeBuckets(aggregation)) {
+					var data = new Object[] { bucket.getFrom(), bucket.getTo() };
+					var count = getCount(bucket.getDocCount(), bucket.getAggregations().asList());
+					builder.addEntry(new AggregationResultEntry(bucket.getKeyAsString(), count, data));
+					totalCount += count;
+				}
+				builder.totalCount(totalCount);
+				break;
 		}
 	}
 
 	private static long getCount(long bucketCount, List<Aggregation> aggregations) {
-		for (Aggregation aggregation : aggregations)
-			if (aggregation instanceof ParsedReverseNested)
-				return ((ParsedReverseNested) aggregation).getDocCount();
+		for (var aggregation : aggregations)
+			if (aggregation instanceof ParsedReverseNested nested)
+				return nested.getDocCount();
 		return bucketCount;
 	}
 
-	static void extend(SearchResult<Map<String, Object>> result, long totalHits,
-			SearchQuery searchQuery) {
+	static void extend(SearchResult<Map<String, Object>> result, long totalHits, SearchQuery searchQuery) {
 		result.resultInfo.totalCount = totalHits;
 		result.resultInfo.currentPage = searchQuery.getPage();
 		result.resultInfo.pageSize = searchQuery.getPageSize();
-		long totalCount = result.resultInfo.totalCount;
+		var totalCount = result.resultInfo.totalCount;
 		if (searchQuery.getPageSize() != 0) {
-			int pageCount = (int) totalCount / searchQuery.getPageSize();
+			var pageCount = (int) totalCount / searchQuery.getPageSize();
 			if ((totalCount % searchQuery.getPageSize()) != 0) {
 				pageCount = 1 + pageCount;
 			}

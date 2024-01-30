@@ -2,7 +2,6 @@ package com.greendelta.search.wrapper.os;
 
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
-import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 
 import com.greendelta.search.wrapper.aggregations.RangeAggregation;
 import com.greendelta.search.wrapper.aggregations.SearchAggregation;
@@ -11,7 +10,7 @@ import com.greendelta.search.wrapper.aggregations.TermsAggregation;
 class Aggregation {
 
 	static AggregationBuilder builder(SearchAggregation aggregation) {
-		AggregationBuilder builder = createBuilder(aggregation);
+		var builder = createBuilder(aggregation);
 		if (isNested(aggregation.field)) {
 			builder = nest(builder, aggregation);
 		}
@@ -19,14 +18,11 @@ class Aggregation {
 	}
 
 	private static AggregationBuilder createBuilder(SearchAggregation aggregation) {
-		switch (aggregation.type) {
-		case TERM:
-			return termsBuilder((TermsAggregation) aggregation);
-		case RANGE:
-			return rangeBuilder((RangeAggregation) aggregation);
-		default:
-			return null;
-		}
+		return switch (aggregation.type) {
+			case TERM -> termsBuilder((TermsAggregation) aggregation);
+			case RANGE -> rangeBuilder((RangeAggregation) aggregation);
+			default -> null;
+		};
 	}
 
 	private static AggregationBuilder termsBuilder(TermsAggregation aggregation) {
@@ -34,8 +30,8 @@ class Aggregation {
 	}
 
 	private static AggregationBuilder rangeBuilder(RangeAggregation aggregation) {
-		RangeAggregationBuilder builder = AggregationBuilders.range(aggregation.name).field(aggregation.field);
-		for (Double[] range : aggregation.ranges) {
+		var builder = AggregationBuilders.range(aggregation.name).field(aggregation.field);
+		for (var range : aggregation.ranges) {
 			if (range[0] == null) {
 				builder.addUnboundedTo(range[1]);
 			} else if (range[1] == null) {
@@ -48,8 +44,8 @@ class Aggregation {
 	}
 
 	private static AggregationBuilder nest(AggregationBuilder builder, SearchAggregation aggregation) {
-		String path = aggregation.field;
-		String name = aggregation.name;
+		var path = aggregation.field;
+		var name = aggregation.name;
 		builder.subAggregation(AggregationBuilders.reverseNested(name + "-r"));
 		while (path.contains(".")) {
 			name += "-n";

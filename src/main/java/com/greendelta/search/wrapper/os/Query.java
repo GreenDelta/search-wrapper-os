@@ -12,9 +12,7 @@ import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
-import org.opensearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
-import org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 
 import com.greendelta.search.wrapper.Conjunction;
 import com.greendelta.search.wrapper.MultiSearchFilter;
@@ -24,7 +22,7 @@ import com.greendelta.search.wrapper.SearchQuery;
 class Query {
 
 	static QueryBuilder create(SearchQuery searchQuery) {
-		BoolQueryBuilder bool = QueryBuilders.boolQuery();
+		var bool = QueryBuilders.boolQuery();
 		searchQuery.getFilters().forEach(filter -> {
 			QueryBuilder query = create(filter.field, filter.conjunction, filter.values);
 			append(bool, query, Conjunction.AND);
@@ -33,7 +31,7 @@ class Query {
 			QueryBuilder query = query(filter);
 			append(bool, query, Conjunction.AND);
 		});
-		QueryBuilder query = simplify(bool);
+		var query = simplify(bool);
 		if (query == null) {
 			query = QueryBuilders.matchAllQuery();
 		}
@@ -43,9 +41,9 @@ class Query {
 	private static QueryBuilder create(String field, Conjunction conjunction, Set<SearchFilterValue> values) {
 		if (values.isEmpty())
 			return null;
-		BoolQueryBuilder bool = QueryBuilders.boolQuery();
+		var bool = QueryBuilders.boolQuery();
 		values.forEach(value -> {
-			QueryBuilder query = create(field, value);
+			var query = create(field, value);
 			append(bool, query, conjunction);
 		});
 		return simplify(bool);
@@ -54,9 +52,9 @@ class Query {
 	private static QueryBuilder query(MultiSearchFilter filter) {
 		if (filter.values.isEmpty())
 			return null;
-		BoolQueryBuilder bool = QueryBuilders.boolQuery();
+		var bool = QueryBuilders.boolQuery();
 		filter.fields.forEach(field -> {
-			QueryBuilder query = create(field, filter.conjunction, filter.values);
+			var query = create(field, filter.conjunction, filter.values);
 			append(bool, query, Conjunction.OR);
 		});
 		return simplify(bool);
@@ -73,7 +71,7 @@ class Query {
 	}
 
 	private static QueryBuilder simplify(BoolQueryBuilder query) {
-		int queries = query.must().size() + query.should().size();
+		var queries = query.must().size() + query.should().size();
 		if (queries == 0)
 			return null;
 		if (queries == 1 && query.must().isEmpty())
@@ -84,7 +82,7 @@ class Query {
 	}
 
 	private static QueryBuilder create(String field, SearchFilterValue value) {
-		QueryBuilder builder = builder(field, value);
+		var builder = builder(field, value);
 		if (builder == null)
 			return null;
 		return decorate(builder, field, value);
@@ -93,32 +91,27 @@ class Query {
 	private static QueryBuilder builder(String field, SearchFilterValue value) {
 		if (value.value == null || value.value.toString().isEmpty())
 			return null;
-		switch (value.type) {
-		case TERM:
-			return terms(field, value);
-		case PHRASE:
-			return phrase(field, value);
-		case WILDCARD:
-			return wildcard(field, value);
-		case RANGE:
-			return range(field, value);
-		default:
-			return null;
-		}
+		return switch (value.type) {
+			case TERM -> terms(field, value);
+			case PHRASE -> phrase(field, value);
+			case WILDCARD -> wildcard(field, value);
+			case RANGE -> range(field, value);
+			default -> null;
+		};
 	}
 
 	private static QueryBuilder terms(String field, SearchFilterValue value) {
-		List<Object> terms = toCollection(value.value);
+		var terms = toCollection(value.value);
 		if (terms.size() == 1)
 			return QueryBuilders.termQuery(field, terms.get(0));
 		return QueryBuilders.termsQuery(field, terms);
 	}
 
 	private static QueryBuilder phrase(String field, SearchFilterValue value) {
-		List<Object> phrases = toCollection(value.value);
+		var phrases = toCollection(value.value);
 		if (phrases.size() == 1)
 			return QueryBuilders.matchPhraseQuery(field, phrases.get(0));
-		BoolQueryBuilder query = QueryBuilders.boolQuery();
+		var query = QueryBuilders.boolQuery();
 		phrases.forEach(phrase -> {
 			query.should(QueryBuilders.matchPhraseQuery(field, phrase));
 		});
@@ -130,7 +123,7 @@ class Query {
 	}
 
 	private static QueryBuilder range(String field, SearchFilterValue value) {
-		Object[] v = (Object[]) value.value;
+		var v = (Object[]) value.value;
 		return QueryBuilders.rangeQuery(field).from(v[0]).to(v[1]);
 	}
 
@@ -163,7 +156,7 @@ class Query {
 	}
 
 	private static QueryBuilder nest(QueryBuilder query, String field) {
-		String path = field;
+		var path = field;
 		while (path.contains(".")) {
 			path = path.substring(0, path.lastIndexOf("."));
 			query = QueryBuilders.nestedQuery(path, query, ScoreMode.Total);
@@ -174,13 +167,13 @@ class Query {
 	private static QueryBuilder score(QueryBuilder query, SearchQuery searchQuery) {
 		if (searchQuery.getScores().isEmpty())
 			return query;
-		List<FilterFunctionBuilder> functions = new ArrayList<>();
+		var functions = new ArrayList<FilterFunctionBuilder>();
 		searchQuery.getScores().forEach(score -> {
-			ScriptScoreFunctionBuilder script = ScoreFunctionBuilders.scriptFunction(Script.from(score));
+			var script = ScoreFunctionBuilders.scriptFunction(Script.from(score));
 			functions.add(new FilterFunctionBuilder(script));
 		});
 		searchQuery.getFunctions().forEach(function -> {
-			LinearDecayFunctionBuilder script = ScoreFunctionBuilders.linearDecayFunction(function.fieldName,
+			var script = ScoreFunctionBuilders.linearDecayFunction(function.fieldName,
 					function.origin, function.scale, function.offset, function.decay);
 			functions.add(new FilterFunctionBuilder(script));
 		});

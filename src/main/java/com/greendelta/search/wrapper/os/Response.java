@@ -41,16 +41,12 @@ class Response implements OsResponse {
 
 	@Override
 	public List<? extends Bucket> getTermBuckets(Aggregation aggregation) {
-		switch (aggregation.getType()) {
-		case StringTerms.NAME:
-			return ((StringTerms) aggregation).getBuckets();
-		case LongTerms.NAME:
-			return ((LongTerms) aggregation).getBuckets();
-		case DoubleTerms.NAME:
-			return ((DoubleTerms) aggregation).getBuckets();
-		default:
-			return new ArrayList<>();
-		}
+		return switch (aggregation.getType()) {
+			case StringTerms.NAME -> ((StringTerms) aggregation).getBuckets();
+			case LongTerms.NAME -> ((LongTerms) aggregation).getBuckets();
+			case DoubleTerms.NAME -> ((DoubleTerms) aggregation).getBuckets();
+			default -> new ArrayList<>();
+		};
 	}
 
 	public List<? extends org.opensearch.search.aggregations.bucket.range.Range.Bucket> getRangeBuckets(

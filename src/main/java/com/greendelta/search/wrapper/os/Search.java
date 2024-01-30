@@ -6,13 +6,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.document.DocumentField;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.Aggregation;
@@ -20,11 +18,9 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.sort.SortOrder;
 
-import com.greendelta.search.wrapper.SearchField;
 import com.greendelta.search.wrapper.SearchQuery;
 import com.greendelta.search.wrapper.SearchResult;
 import com.greendelta.search.wrapper.SearchSorting;
-import com.greendelta.search.wrapper.aggregations.SearchAggregation;
 
 class Search {
 
@@ -33,25 +29,24 @@ class Search {
 	static SearchResult<Map<String, Object>> run(OsRequest request, SearchQuery searchQuery) {
 		prepare(request, searchQuery);
 		try {
-			SearchResult<Map<String, Object>> result = new SearchResult<>();
+			var result = new SearchResult<Map<String, Object>>();
 			OsResponse response = null;
-			boolean doContinue = true;
-			long totalHits = 0;
+			var doContinue = true;
+			var totalHits = 0l;
 			while (doContinue) {
 				if (!searchQuery.isPaged()) {
 					request.setFrom(result.data.size());
 				}
 				response = request.execute();
-				SearchHit[] hits = response.getHits();
-				for (SearchHit hit : hits) {
+				for (var hit : response.getHits()) {
 					if (searchQuery.getFullResult()) {
 						result.data.add(hit.getSourceAsMap());
 					} else if (searchQuery.getFields().isEmpty()) {
 						result.data.add(Collections.singletonMap("documentId", hit.getId()));
 					} else {
-						Map<String, DocumentField> fields = hit.getFields();
-						Map<String, Object> map = new HashMap<>();
-						for (SearchField field : searchQuery.getFields()) {
+						var fields = hit.getFields();
+						var map = new HashMap<String, Object>();
+						for (var field : searchQuery.getFields()) {
 							if (!fields.containsKey(field.name))
 								continue;
 							putFieldValue(map, field.name, fields.get(field.name).getValues(), field.isArray);
@@ -68,7 +63,7 @@ class Search {
 			return result;
 		} catch (Exception e) {
 			log.error("Error during search", e);
-			SearchResult<Map<String, Object>> result = new SearchResult<>();
+			var result = new SearchResult<Map<String, Object>>();
 			Result.extend(result, 0, searchQuery);
 			return result;
 		}
@@ -84,23 +79,16 @@ class Search {
 			}
 			return;
 		}
-		String first = field.substring(0, field.indexOf("."));
-		String rest = field.substring(field.indexOf(".") + 1);
+		var first = field.substring(0, field.indexOf("."));
+		var rest = field.substring(field.indexOf(".") + 1);
 		if (array) {
-			List<Map<String, Object>> list = (List<Map<String, Object>>) map.get(first);
-			if (list == null) {
-				list = values.stream().map(v -> new HashMap<String, Object>()).collect(Collectors.toList());
-				map.put(first, list);
-			}
-			for (int i = 0; i < values.size(); i++) {
+			var list = (List<Map<String, Object>>) map.computeIfAbsent(first,
+					k -> values.stream().map(v -> new HashMap<String, Object>()).collect(Collectors.toList()));
+			for (var i = 0; i < values.size(); i++) {
 				list.get(i).put(rest, values.get(i));
 			}
 		} else {
-			Map<String, Object> subMap = (Map<String, Object>) map.get(first);
-			if (subMap == null) {
-				subMap = new HashMap<>();
-				map.put(first, subMap);
-			}
+			var subMap = (Map<String, Object>) map.computeIfAbsent(first, k -> new HashMap<>());
 			putFieldValue(subMap, rest, values, false);
 		}
 	}
@@ -108,17 +96,16 @@ class Search {
 	static Set<String> ids(OsRequest request, SearchQuery searchQuery) {
 		prepare(request, searchQuery);
 		try {
-			Set<String> ids = new HashSet<>();
+			var ids = new HashSet<String>();
 			OsResponse response = null;
-			boolean doContinue = true;
-			long totalHits = 0;
+			var doContinue = true;
+			var totalHits = 0l;
 			while (doContinue) {
 				if (!searchQuery.isPaged()) {
 					request.setFrom(ids.size());
 				}
 				response = request.execute();
-				SearchHit[] hits = response.getHits();
-				for (SearchHit hit : hits) {
+				for (var hit : response.getHits()) {
 					ids.add(hit.getId());
 				}
 				totalHits = response.getTotalHits();
@@ -138,7 +125,7 @@ class Search {
 		setupAggregations(request, searchQuery);
 		request.setQuery(Query.create(searchQuery));
 		if (!searchQuery.getFullResult()) {
-			for (SearchField field : searchQuery.getFields()) {
+			for (var field : searchQuery.getFields()) {
 				request.addField(field.name);
 			}
 		}
@@ -146,7 +133,7 @@ class Search {
 	}
 
 	private static void setupPaging(OsRequest request, SearchQuery searchQuery) {
-		int start = (searchQuery.getPage() - 1) * searchQuery.getPageSize();
+		var start = (searchQuery.getPage() - 1) * searchQuery.getPageSize();
 		if (start > 0) {
 			request.setFrom(start);
 		}
@@ -162,14 +149,16 @@ class Search {
 	}
 
 	private static void setupSorting(OsRequest request, SearchQuery searchQuery) {
-		for (Entry<String, SearchSorting> entry : searchQuery.getSortBy().entrySet()) {
-			SortOrder value = entry.getValue() == SearchSorting.ASC ? SortOrder.ASC : SortOrder.DESC;
+		for (var entry : searchQuery.getSortBy().entrySet()) {
+			var value = entry.getValue() == SearchSorting.ASC
+					? SortOrder.ASC
+					: SortOrder.DESC;
 			request.addSort(entry.getKey(), value);
 		}
 	}
 
 	private static void setupAggregations(OsRequest request, SearchQuery searchQuery) {
-		for (SearchAggregation aggregation : searchQuery.getAggregations()) {
+		for (var aggregation : searchQuery.getAggregations()) {
 			request.addAggregation(com.greendelta.search.wrapper.os.Aggregation.builder(aggregation));
 		}
 	}
