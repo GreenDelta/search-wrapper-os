@@ -62,6 +62,8 @@ class Search {
 			Result.extend(result, totalHits, searchQuery);
 			return result;
 		} catch (Exception e) {
+			if (searchQuery.getThrowErrors())
+				throw new RuntimeException(e);
 			log.error("Error during search", e);
 			var result = new SearchResult<Map<String, Object>>();
 			Result.extend(result, 0, searchQuery);
