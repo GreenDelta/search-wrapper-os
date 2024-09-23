@@ -1,3 +1,6 @@
+# Deprecated
+This project is not longer maintained and is replaced by [search-wrapper](https://github.com/GreenDelta/search-wrapper)
+
 # Search wrapper - Implementation for opensearch
 This project provides an implementation for the search-wrapper API using opensearch as a search engine.
 
